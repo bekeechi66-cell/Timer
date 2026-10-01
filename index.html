@@ -1,0 +1,1498 @@
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#070a11" />
+<title>NDI Countdown — vMix Broadcast Timer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070a11;
+  --line:rgba(255,255,255,.08);
+  --line-strong:rgba(255,255,255,.14);
+  --text:#e9eef7;
+  --muted:#8695ad;
+  --accent:#22d3ee;
+  --warn:#fbbf24;
+  --crit:#fb4d63;
+  --ok:#34d399;
+  --r:16px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  background:var(--bg);color:var(--text);
+  min-height:100vh;min-height:100dvh;
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+  overflow-x:hidden;
+}
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(900px 620px at 8% -12%, rgba(34,211,238,.16), transparent 62%),
+    radial-gradient(820px 560px at 100% 4%, rgba(139,92,246,.16), transparent 58%),
+    radial-gradient(720px 520px at 50% 118%, rgba(251,77,99,.10), transparent 60%);
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+input,select{font-family:inherit}
+.app{position:relative;z-index:1;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+
+/* ---------- TOP BAR ---------- */
+.topbar{
+  position:sticky;top:0;z-index:60;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:12px 18px;
+  background:rgba(7,10,17,.78);
+  backdrop-filter:blur(16px) saturate(140%);
+  -webkit-backdrop-filter:blur(16px) saturate(140%);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:center;gap:11px;margin-right:auto}
+.logo{
+  width:38px;height:38px;border-radius:11px;flex:none;
+  display:grid;place-items:center;
+  background:linear-gradient(145deg,#22d3ee,#6366f1);
+  box-shadow:0 6px 20px -6px rgba(34,211,238,.7);
+  color:#04121a;
+}
+.brand h1{font-size:15px;margin:0;font-weight:700;letter-spacing:-.01em}
+.brand p{margin:1px 0 0;font-size:10px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+.tabs{display:flex;gap:4px;padding:4px;border-radius:13px;background:rgba(255,255,255,.045);border:1px solid var(--line)}
+.tab{padding:9px 15px;border-radius:9px;font-size:13px;font-weight:600;color:var(--muted);transition:.18s;white-space:nowrap}
+.tab:hover{color:var(--text)}
+.tab.active{background:linear-gradient(145deg, rgba(34,211,238,.22), rgba(99,102,241,.22));color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.status{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--muted);padding:8px 13px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
+.dot{width:8px;height:8px;border-radius:50%;background:#5b6577;box-shadow:none;flex:none;transition:.25s}
+.dot.ok{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+.dot.live{background:var(--accent);box-shadow:0 0 12px var(--accent);animation:blink 1.5s infinite}
+.dot.err{background:var(--crit);box-shadow:0 0 10px var(--crit)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ---------- VIEWS ---------- */
+.view{display:none}
+.app[data-view="control"] .view-control{display:grid}
+.app[data-view="remote"] .view-remote{display:block}
+.app[data-view="output"] .view-output{display:block}
+.app[data-view="output"] .topbar{display:none}
+
+.view-control{
+  padding:20px;gap:18px;width:100%;
+  max-width:1560px;margin:0 auto;
+  grid-template-columns:minmax(0,1.55fr) minmax(340px,1fr);
+  align-items:start;
+}
+.col{min-width:0;display:flex;flex-direction:column}
+
+/* ---------- CARDS ---------- */
+.card{
+  background:linear-gradient(180deg, rgba(24,32,50,.86), rgba(15,21,34,.86));
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  padding:18px;
+  box-shadow:0 22px 45px -28px rgba(0,0,0,.95), inset 0 1px 0 rgba(255,255,255,.04);
+}
+.card + .card{margin-top:16px}
+.card-title{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+.card-title svg{opacity:.7;flex:none}
+
+/* ---------- STAGE ---------- */
+.stage-wrap{
+  position:relative;border-radius:14px;overflow:hidden;
+  border:1px solid var(--line-strong);
+  box-shadow:0 30px 60px -30px #000;
+  background:#04060b;
+}
+.stage{
+  position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;
+  display:grid;place-items:center;
+  container-type:size;
+  background:#04060b;
+  --accent:#22d3ee;
+  --live:var(--accent);
+  --fs:14vw;
+}
+.stage-bg{position:absolute;inset:0;z-index:0;transition:background .35s ease}
+.stage[data-bg="gradient"] .stage-bg{
+  background:radial-gradient(110% 85% at 50% 0%, #17243c 0%, #0b1220 55%, #04060b 100%);
+}
+.stage[data-bg="black"] .stage-bg{background:#000}
+.stage[data-bg="green"] .stage-bg{background:#00b140}
+.stage[data-bg="transparent"] .stage-bg{background:transparent}
+[data-checker] .stage[data-bg="transparent"] .stage-bg{
+  background-color:#0d121c;
+  background-image:
+    linear-gradient(45deg,#161d2b 25%,transparent 25%,transparent 75%,#161d2b 75%),
+    linear-gradient(45deg,#161d2b 25%,transparent 25%,transparent 75%,#161d2b 75%);
+  background-size:26px 26px;
+  background-position:0 0,13px 13px;
+}
+.stage::after{
+  content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(120% 100% at 50% 50%, transparent 42%, rgba(0,0,0,.5) 100%);
+  opacity:.95;transition:opacity .3s;
+}
+.stage[data-bg="green"]::after,.stage[data-bg="transparent"]::after{opacity:0}
+.stage-inner{
+  position:relative;z-index:2;
+  width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;gap:1.5cqw;
+  padding:16px;padding:3cqw;
+  text-align:center;
+}
+.timer-label{
+  font-size:clamp(9px,1.8vw,26px);
+  font-size:2.5cqw;
+  font-weight:700;
+  letter-spacing:.34em;
+  text-indent:.34em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,.62);
+  transition:color .3s;
+  max-width:92%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.stage[data-bg="green"] .timer-label,.stage[data-bg="green"] .stage-meta{color:rgba(0,0,0,.55)}
+.timer-digits{
+  font-family:'JetBrains Mono',ui-monospace,monospace;
+  font-weight:800;
+  font-size:var(--fs);
+  line-height:1;
+  letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;
+  color:#fff;
+  text-shadow:0 0 24px rgba(34,211,238,.4);
+  text-shadow:0 0 0.32em color-mix(in srgb, var(--live) 65%, transparent), 0 0 1em color-mix(in srgb, var(--live) 28%, transparent);
+  transition:color .25s;
+  white-space:nowrap;
+}
+.stage[data-bg="green"] .timer-digits{text-shadow:none;color:#04140a}
+.stage[data-state="warn"] .timer-digits{color:#fbbf24;text-shadow:0 0 0.35em rgba(251,191,36,.55)}
+.stage[data-state="crit"] .timer-digits{color:#fb4d63;text-shadow:0 0 0.4em rgba(251,77,99,.6);animation:pulse 1s ease-in-out infinite}
+.stage[data-state="done"] .timer-digits{color:#fb4d63;animation:flash .62s steps(1,end) infinite}
+.stage[data-state="paused"] .timer-digits{opacity:.72}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.82;transform:scale(.985)}}
+@keyframes flash{0%,100%{opacity:1}50%{opacity:.16}}
+.timer-bar{
+  width:72%;
+  height:6px;height:1.5cqw;
+  min-height:5px;max-height:16px;
+  border-radius:999px;
+  background:rgba(255,255,255,.12);
+  overflow:hidden;position:relative;
+  box-shadow:inset 0 0 8px rgba(0,0,0,.5);
+}
+.stage[data-bg="green"] .timer-bar{background:rgba(0,0,0,.2)}
+.timer-bar-fill{
+  position:absolute;inset:0;transform-origin:left center;
+  background:linear-gradient(90deg,var(--live),#a78bfa);
+  border-radius:999px;
+}
+.stage-meta{
+  display:flex;align-items:center;justify-content:center;gap:14px;
+  font-size:clamp(8px,1.3vw,16px);
+  font-size:1.7cqw;
+  font-weight:600;letter-spacing:.2em;text-transform:uppercase;
+  color:rgba(255,255,255,.42);
+  font-family:'JetBrains Mono',monospace;
+}
+.stage-meta .meta-sep{opacity:.4}
+
+/* ---------- OUTPUT VIEW ---------- */
+.view-output .stage{
+  position:fixed;inset:0;width:100vw;height:100vh;
+  aspect-ratio:auto;border-radius:0;
+}
+.view-output .stage-inner{padding:2cqw}
+.exit-pill{
+  position:fixed;top:14px;right:14px;z-index:200;
+  padding:9px 15px;border-radius:999px;
+  background:rgba(8,12,20,.72);border:1px solid rgba(255,255,255,.18);
+  color:#fff;font-size:12px;font-weight:600;
+  backdrop-filter:blur(10px);
+  opacity:0;transform:translateY(-6px);transition:opacity .3s,transform .3s;
+  pointer-events:none;
+}
+.exit-pill.show{opacity:1;transform:translateY(0);pointer-events:auto}
+
+/* ---------- TRANSPORT ---------- */
+.transport{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr;gap:10px;margin-top:14px}
+@media(max-width:680px){.transport{grid-template-columns:1fr 1fr}.transport .tbtn-primary{grid-column:span 2}}
+.tbtn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  height:58px;border-radius:13px;font-weight:700;font-size:14px;
+  background:rgba(255,255,255,.05);
+  border:1px solid var(--line-strong);
+  color:var(--text);
+  transition:transform .12s, background .18s, box-shadow .18s, color .18s;
+}
+.tbtn:hover{background:rgba(255,255,255,.09)}
+.tbtn:active{transform:scale(.975)}
+.tbtn-primary{
+  background:linear-gradient(140deg,#22d3ee,#4f7dfb);
+  color:#02121a;border-color:transparent;
+  box-shadow:0 14px 34px -14px rgba(34,211,238,.85);
+  font-size:15px;
+}
+.tbtn-primary:hover{filter:brightness(1.07);background:linear-gradient(140deg,#22d3ee,#4f7dfb)}
+.tbtn-primary.running{
+  background:linear-gradient(140deg,#fbbf24,#f97316);
+  color:#1a1005;
+  box-shadow:0 14px 34px -14px rgba(251,191,36,.85);
+}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{
+  padding:9px 14px;border-radius:10px;font-size:13px;font-weight:600;
+  background:rgba(255,255,255,.045);border:1px solid var(--line);color:var(--muted);
+  transition:.16s;font-family:'JetBrains Mono',monospace;
+}
+.chip:hover{color:#fff;background:rgba(255,255,255,.09);border-color:var(--line-strong)}
+.chip:active{transform:scale(.96)}
+
+/* ---------- FORM ELEMENTS ---------- */
+.presets{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media(max-width:420px){.presets{grid-template-columns:repeat(3,1fr)}}
+.preset{
+  padding:13px 4px;border-radius:11px;font-size:14px;font-weight:700;
+  font-family:'JetBrains Mono',monospace;
+  background:rgba(255,255,255,.045);border:1px solid var(--line);color:var(--text);
+  transition:.16s;
+}
+.preset:hover{background:rgba(255,255,255,.09);border-color:var(--line-strong);transform:translateY(-1px)}
+.preset:active{transform:scale(.96)}
+.preset.active{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.5);color:#bff3ff;box-shadow:0 0 22px -6px rgba(34,211,238,.5)}
+.field{display:block;margin-bottom:14px}
+.field>span{display:block;font-size:10px;color:var(--muted);margin-bottom:7px;letter-spacing:.14em;text-transform:uppercase;font-weight:700}
+.input{
+  width:100%;padding:12px 14px;border-radius:11px;
+  background:rgba(0,0,0,.35);border:1px solid var(--line-strong);
+  color:var(--text);font-size:14px;outline:none;transition:.16s;
+}
+.input::placeholder{color:#5c6a80}
+.input:focus{border-color:rgba(34,211,238,.6);box-shadow:0 0 0 3px rgba(34,211,238,.12)}
+.row{display:flex;gap:8px}
+.btn{
+  padding:12px 16px;border-radius:11px;font-size:13px;font-weight:700;
+  background:rgba(255,255,255,.06);border:1px solid var(--line-strong);color:var(--text);
+  transition:.16s;white-space:nowrap;
+}
+.btn:hover{background:rgba(255,255,255,.11)}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:linear-gradient(140deg,#22d3ee,#4f7dfb);color:#02121a;border-color:transparent;box-shadow:0 12px 28px -14px rgba(34,211,238,.9)}
+.btn-primary:hover{filter:brightness(1.07)}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:rgba(0,0,0,.3);padding:5px;border-radius:12px;border:1px solid var(--line)}
+.seg button{padding:10px 4px;border-radius:8px;font-size:12px;font-weight:600;color:var(--muted);transition:.16s}
+.seg button:hover{color:var(--text)}
+.seg button.active{background:rgba(255,255,255,.13);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+.switches{margin-top:4px}
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.switch-row:last-child{border-bottom:none}
+.switch-row span{font-size:13px;font-weight:500;color:#c3cede}
+.switch{position:relative;width:46px;height:26px;border-radius:999px;background:rgba(255,255,255,.13);transition:.22s;flex:none}
+.switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.22s;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.switch.on{background:linear-gradient(140deg,#22d3ee,#4f7dfb)}
+.switch.on::after{transform:translateX(20px)}
+.swatches{display:flex;gap:9px;flex-wrap:wrap}
+.swatch{width:36px;height:36px;border-radius:11px;border:2px solid transparent;transition:.16s;position:relative}
+.swatch:hover{transform:translateY(-2px)}
+.swatch.active{border-color:#fff;transform:scale(1.07);box-shadow:0 0 18px -2px currentColor}
+
+/* ---------- REMOTE ACCESS CARD ---------- */
+.room{
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  padding:14px;border-radius:14px;
+  background:rgba(0,0,0,.35);border:1px dashed var(--line-strong);margin-bottom:14px;
+}
+.room-label{font-size:9px;letter-spacing:.24em;color:var(--muted);text-transform:uppercase;text-align:center;font-weight:700;margin-bottom:2px}
+.room-code{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:800;letter-spacing:.24em;text-indent:.24em;color:#a5f3ff;text-shadow:0 0 30px rgba(34,211,238,.5);line-height:1.1}
+.qr-box{display:flex;justify-content:center;padding:10px;background:#fff;border-radius:12px;width:fit-content;margin:0 auto 12px;box-shadow:0 10px 30px -12px rgba(0,0,0,.8)}
+.qr-box canvas{display:block;border-radius:6px}
+.hint{font-size:12px;color:var(--muted);line-height:1.55;margin:0 0 12px;text-align:center}
+.hint strong{color:var(--text)}
+.steps{counter-reset:step;list-style:none;padding:0;margin:0}
+.steps li{position:relative;padding-left:30px;margin-bottom:12px;font-size:13px;color:var(--muted);line-height:1.55}
+.steps li:last-child{margin-bottom:0}
+.steps li::before{
+  counter-increment:step;content:counter(step);
+  position:absolute;left:0;top:1px;width:20px;height:20px;border-radius:6px;
+  display:grid;place-items:center;font-size:11px;font-weight:800;
+  color:#a5f3ff;background:rgba(34,211,238,.14);border:1px solid rgba(34,211,238,.3);
+}
+.steps strong{color:var(--text);font-weight:600}
+.kbd{display:inline-block;padding:1px 6px;border-radius:5px;background:rgba(255,255,255,.08);border:1px solid var(--line-strong);font-family:'JetBrains Mono',monospace;font-size:11px;color:#cdd8e8}
+
+/* ---------- REMOTE (PHONE) VIEW ---------- */
+.view-remote{max-width:540px;margin:0 auto;padding:16px;width:100%}
+.remote-shell{
+  background:linear-gradient(180deg, rgba(24,32,50,.9), rgba(13,18,29,.9));
+  border:1px solid var(--line);border-radius:22px;padding:20px;
+  box-shadow:0 30px 70px -34px #000;
+}
+.remote-top{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.remote-time{
+  font-family:'JetBrains Mono',monospace;font-weight:800;
+  font-size:clamp(58px,22vw,104px);
+  line-height:1;text-align:center;padding:14px 0 6px;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+  color:#fff;text-shadow:0 0 40px rgba(34,211,238,.4);
+  transition:color .25s;
+}
+.remote-time.warn{color:#fbbf24;text-shadow:0 0 40px rgba(251,191,36,.45)}
+.remote-time.crit,.remote-time.done{color:#fb4d63;text-shadow:0 0 40px rgba(251,77,99,.5)}
+.remote-time.paused{opacity:.7}
+.remote-label{text-align:center;font-size:11px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:20px}
+.remote-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.rbtn{
+  height:76px;border-radius:16px;font-size:15px;font-weight:700;
+  background:rgba(255,255,255,.06);border:1px solid var(--line-strong);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  transition:transform .12s,background .18s;
+}
+.rbtn small{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.rbtn:active{transform:scale(.96)}
+.rbtn:hover{background:rgba(255,255,255,.1)}
+.rbtn.wide{grid-column:span 2;height:104px;font-size:19px;border:none;background:linear-gradient(140deg,#22d3ee,#4f7dfb);color:#03131b;box-shadow:0 18px 40px -18px rgba(34,211,238,.9)}
+.rbtn.wide.running{background:linear-gradient(140deg,#fbbf24,#f97316);color:#1a1005;box-shadow:0 18px 40px -18px rgba(251,191,36,.85)}
+.rbtn.wide small{color:rgba(3,19,27,.6)}
+.rbtn.danger{color:#ffc9d0;border-color:rgba(251,77,99,.35);background:rgba(251,77,99,.1)}
+.remote-presets{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.remote-presets button{padding:11px 2px;border-radius:11px;font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;background:rgba(255,255,255,.05);border:1px solid var(--line);transition:.16s}
+.remote-presets button:active{transform:scale(.95)}
+.remote-presets button:hover{background:rgba(255,255,255,.1)}
+.remote-note{margin-top:16px;font-size:11.5px;color:var(--muted);text-align:center;line-height:1.6}
+
+/* ---------- TOAST ---------- */
+.toast{
+  position:fixed;left:50%;bottom:26px;z-index:400;
+  transform:translate(-50%,20px);
+  padding:12px 20px;border-radius:12px;
+  background:rgba(16,22,35,.96);border:1px solid var(--line-strong);
+  color:#fff;font-size:13px;font-weight:600;
+  box-shadow:0 20px 45px -18px #000;
+  opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;
+  max-width:88vw;text-align:center;
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:1024px){
+  .view-control{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:640px){
+  .topbar{padding:10px 12px;gap:10px}
+  .brand p{display:none}
+  .view-control{padding:14px;gap:14px}
+  .card{padding:15px;border-radius:14px}
+  .tab{padding:8px 11px;font-size:12px}
+  .status{font-size:11px;padding:7px 10px}
+}
+@media (max-width:400px){
+  .status span:not(.dot){display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="app" id="app" data-view="control">
+
+  <!-- ============ TOP BAR ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="13" r="8"/><path d="M12 9.5v4l2.6 1.8"/><path d="M9 2.2h6"/>
+        </svg>
+      </div>
+      <div>
+        <h1>NDI Countdown</h1>
+        <p>vMix · NDI · Remote</p>
+      </div>
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view-btn="control">Dashboard</button>
+      <button class="tab" data-view-btn="remote">Phone Remote</button>
+      <button class="tab" data-view-btn="output">Output</button>
+    </nav>
+
+    <div class="status">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">Local mode</span>
+    </div>
+  </header>
+
+  <!-- ============ CONTROL DASHBOARD ============ -->
+  <main class="view view-control">
+
+    <section class="col">
+      <div class="card">
+        <div class="stage-wrap" data-checker>
+          <div id="previewHost"></div>
+        </div>
+
+        <div class="transport">
+          <button class="tbtn tbtn-primary" id="btnToggle">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <span id="btnToggleLabel">Start</span>
+          </button>
+          <button class="tbtn" id="btnReset">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 2.6-6.4"/><path d="M3 4v5h5"/></svg>
+            Reset
+          </button>
+          <button class="tbtn" data-add="-60000">− 1:00</button>
+          <button class="tbtn" data-add="60000">+ 1:00</button>
+        </div>
+
+        <div class="chips">
+          <button class="chip" data-add="-600000">−10 min</button>
+          <button class="chip" data-add="-300000">−5 min</button>
+          <button class="chip" data-add="-60000">−1 min</button>
+          <button class="chip" data-add="-10000">−10 s</button>
+          <button class="chip" data-add="10000">+10 s</button>
+          <button class="chip" data-add="60000">+1 min</button>
+          <button class="chip" data-add="300000">+5 min</button>
+          <button class="chip" data-add="600000">+10 min</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>
+          Quick Presets
+        </h2>
+        <div class="presets" id="presets"></div>
+        <div class="row" style="margin-top:12px">
+          <input class="input" id="customDur" placeholder="Custom · 7:30 or 1:05:00" inputmode="numeric" autocomplete="off">
+          <button class="btn btn-primary" id="btnSetCustom">Set</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="col">
+      <div class="card">
+        <h2 class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v18M3 12h18"/></svg>
+          Display
+        </h2>
+
+        <label class="field">
+          <span>On-air label</span>
+          <input class="input" id="labelInput" maxlength="28" value="DOORS OPEN IN" autocomplete="off">
+        </label>
+
+        <div class="field">
+          <span>Background</span>
+          <div class="seg" id="bgSeg">
+            <button data-bg="gradient" class="active">Studio</button>
+            <button data-bg="black">Black</button>
+            <button data-bg="green">Green</button>
+            <button data-bg="transparent">Clear</button>
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom:6px">
+          <span>Accent colour</span>
+          <div class="swatches" id="swatches"></div>
+        </div>
+
+        <div class="switches">
+          <div class="switch-row" data-toggle="showBar"><span>Progress bar</span><button class="switch on" role="switch" aria-checked="true"></button></div>
+          <div class="switch-row" data-toggle="showStatus"><span>Status line</span><button class="switch on" role="switch" aria-checked="true"></button></div>
+          <div class="switch-row" data-toggle="showClock"><span>Wall clock</span><button class="switch" role="switch" aria-checked="false"></button></div>
+          <div class="switch-row" data-toggle="sound"><span>Audio cue (last 10s)</span><button class="switch" role="switch" aria-checked="false"></button></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="2" width="14" height="20" rx="2.4"/><path d="M11 18.5h2"/></svg>
+          Phone Remote
+        </h2>
+
+        <div class="room">
+          <div>
+            <div class="room-label">Room code</div>
+            <div class="room-code" id="roomCode">0000</div>
+          </div>
+        </div>
+
+        <div class="qr-box" id="qrBox"><canvas id="qrCanvas" width="150" height="150"></canvas></div>
+        <p class="hint" id="qrHint">Scan with your Android phone to open the remote controller.</p>
+
+        <div class="row">
+          <button class="btn btn-primary" id="btnCopyLink" style="flex:1">Copy remote link</button>
+          <button class="btn" id="btnNewRoom">New code</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          vMix / NDI Setup
+        </h2>
+        <ol class="steps">
+          <li>Click <strong>Output</strong> above to enter the clean full-screen timer.</li>
+          <li>In vMix: <strong>Add Input → Web Browser</strong>, enter this page's URL and append <strong><span class="kbd">?view=output</span></strong>.</li>
+          <li>Set the input to <strong>1024×576</strong> or higher and enable <strong>Transparent</strong> if you selected the <em>Clear</em> background.</li>
+          <li>Open <strong>Output → NDI</strong> on that input (or the main output) to send the timer across the network.</li>
+          <li>Control it live from an Android phone using the QR code above — or press <span class="kbd">Space</span> to start/pause, <span class="kbd">R</span> to reset, <span class="kbd">F</span> for fullscreen.</li>
+        </ol>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ============ PHONE REMOTE VIEW ============ -->
+  <main class="view view-remote">
+    <div class="remote-shell">
+      <div class="remote-top">
+        <span class="dot" id="remoteDot"></span>
+        <span id="remoteStatus">Local controller</span>
+      </div>
+
+      <div class="remote-time" id="remoteTime">05:00</div>
+      <div class="remote-label" id="remoteLabel">DOORS OPEN IN</div>
+
+      <div class="remote-grid">
+        <button class="rbtn wide" id="rBtnToggle">
+          <span id="rBtnToggleLabel">▶ Start</span>
+          <small id="rBtnToggleSub">Tap to begin countdown</small>
+        </button>
+        <button class="rbtn" data-add="-60000">− 1:00<small>Subtract</small></button>
+        <button class="rbtn" data-add="60000">+ 1:00<small>Add time</small></button>
+        <button class="rbtn danger" id="rBtnReset">Reset<small>Back to start</small></button>
+        <button class="rbtn" id="rBtnPause">Pause<small>Hold timer</small></button>
+      </div>
+
+      <div class="remote-presets" id="remotePresets"></div>
+
+      <p class="remote-note">
+        Keep this page open on your Android device. Commands are relayed to the master timer instantly over the network.
+      </p>
+    </div>
+  </main>
+
+  <!-- ============ CLEAN OUTPUT ============ -->
+  <main class="view view-output">
+    <div id="outputHost"></div>
+  </main>
+
+  <div class="exit-pill" id="exitPill">Press <b>Esc</b> to exit output</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script>
+(function(){
+'use strict';
+
+/* =========================================================
+   UTILITIES
+   ========================================================= */
+const $  = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.prototype.slice.call((r || document).querySelectorAll(s));
+const pad = n => String(n).padStart(2, '0');
+
+function safeParse(s){ try { return JSON.parse(s) || {}; } catch(e){ return {}; } }
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._tm);
+  t._tm = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function fmt(ms){
+  ms = Math.max(0, ms);
+  const t = Math.ceil(ms / 1000);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : pad(m) + ':' + pad(s);
+}
+function parseDuration(str){
+  const s = String(str || '').trim();
+  if (!s) return null;
+  if (/^\d+(\.\d+)?$/.test(s)) return Math.max(0, Math.round(parseFloat(s) * 60000));
+  const parts = s.split(':');
+  if (parts.length > 3) return null;
+  const mult = [3600000, 60000, 1000];
+  const off = mult.length - parts.length;
+  let ms = 0;
+  for (let i = 0; i < parts.length; i++){
+    const raw = parts[i].trim();
+    const v = raw === '' ? 0 : Number(raw);
+    if (!isFinite(v) || v < 0) return null;
+    ms += v * mult[off + i];
+  }
+  return ms;
+}
+
+/* =========================================================
+   STATE
+   ========================================================= */
+const SETTINGS_KEY = 'ndicd.settings.v1';
+const ROOM_KEY     = 'ndicd.room.v1';
+
+const DEFAULTS = {
+  duration: 300000,
+  label: 'DOORS OPEN IN',
+  doneLabel: "TIME'S UP",
+  bg: 'gradient',
+  accent: '#22d3ee',
+  showBar: true,
+  showStatus: true,
+  showClock: false,
+  sound: false
+};
+
+let settings = Object.assign({}, DEFAULTS, safeParse(localStorage.getItem(SETTINGS_KEY)));
+let rt = {
+  duration: settings.duration,
+  remaining: settings.duration,
+  running: false,
+  endsAt: 0,
+  finished: false
+};
+
+function saveSettings(){
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch(e){}
+}
+
+/* =========================================================
+   STAGE BUILDING
+   ========================================================= */
+function stageMarkup(){
+  return '' +
+    '<div class="stage" data-stage data-bg="gradient" data-state="run">' +
+      '<div class="stage-bg"></div>' +
+      '<div class="stage-inner">' +
+        '<div class="timer-label" data-label>DOORS OPEN IN</div>' +
+        '<div class="timer-digits" data-digits>05:00</div>' +
+        '<div class="timer-bar" data-bar><div class="timer-bar-fill" data-fill></div></div>' +
+        '<div class="stage-meta">' +
+          '<span data-status>READY</span>' +
+          '<span class="meta-sep" data-sep style="display:none">·</span>' +
+          '<span data-clock style="display:none"></span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+}
+
+const stageEls = [];
+
+function buildStage(host){
+  host.innerHTML = stageMarkup();
+  const root = $('[data-stage]', host);
+  const rec = {
+    root: root,
+    digits: $('[data-digits]', host),
+    labelEl: $('[data-label]', host),
+    bar: $('[data-bar]', host),
+    fill: $('[data-fill]', host),
+    status: $('[data-status]', host),
+    clock: $('[data-clock]', host),
+    sep: $('[data-sep]', host),
+    w: 0,
+    h: 0,
+    lastText: '',
+    lastLabel: '',
+    lastStatus: ''
+  };
+  stageEls.push(rec);
+  if (window.ResizeObserver){
+    ro.observe(root);
+  } else {
+    rec.w = root.clientWidth || 640;
+    rec.h = root.clientHeight || 360;
+  }
+  return rec;
+}
+
+let ro = null;
+if (window.ResizeObserver){
+  ro = new ResizeObserver(function(entries){
+    let changed = false;
+    entries.forEach(function(e){
+      const rec = stageEls.find(function(s){ return s.root === e.target; });
+      if (!rec) return;
+      const w = e.contentRect.width, h = e.contentRect.height;
+      if (w > 20 && (Math.abs(w - rec.w) > 0.5 || Math.abs(h - rec.h) > 0.5)){
+        rec.w = w; rec.h = h; changed = true;
+      }
+    });
+    if (changed) paint();
+  });
+}
+
+/* =========================================================
+   RENDER LOOP
+   ========================================================= */
+let rafId = null;
+let lastBeepSec = -1;
+
+function schedule(){
+  if (rafId === null) rafId = requestAnimationFrame(tick);
+}
+
+function tick(){
+  rafId = null;
+  if (rt.running){
+    rt.remaining = Math.max(0, rt.endsAt - performance.now());
+    if (rt.remaining <= 0){
+      rt.remaining = 0;
+      rt.running = false;
+      rt.finished = true;
+      onFinish();
+    }
+  }
+  paint();
+  if (rt.running) schedule();
+}
+
+function onFinish(){
+  beep(880, 1.1, 0.22);
+  setTimeout(function(){ beep(660, 0.9, 0.18); }, 260);
+  broadcastState();
+}
+
+function stateOf(){
+  const secs = Math.ceil(rt.remaining / 1000);
+  if (rt.finished && rt.remaining <= 0) return 'done';
+  if (!rt.running) return 'paused';
+  if (secs <= 10) return 'crit';
+  if (secs <= 30) return 'warn';
+  return 'run';
+}
+
+function statusText(st, pct){
+  if (st === 'done') return "TIME'S UP";
+  if (st === 'paused') return rt.remaining === rt.duration ? 'READY' : 'PAUSED';
+  return 'RUNNING · ' + Math.round(pct * 100) + '%';
+}
+
+function paint(){
+  const total = rt.duration || 1;
+  const pct = Math.max(0, Math.min(1, rt.remaining / total));
+  const text = fmt(rt.remaining);
+  const st = stateOf();
+  const secs = Math.ceil(rt.remaining / 1000);
+
+  /* audio cue */
+  if (settings.sound && rt.running && secs <= 10 && secs > 0 && secs !== lastBeepSec){
+    lastBeepSec = secs;
+    beep(secs <= 3 ? 1046 : 784, 0.09, 0.12);
+  }
+  if (!rt.running) lastBeepSec = -1;
+
+  const clockStr = settings.showClock
+    ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : '';
+
+  const labelText = st === 'done' ? settings.doneLabel : settings.label;
+  const statusStr = statusText(st, pct);
+  const charCount = Math.max(text.length, 5);
+
+  for (let i = 0; i < stageEls.length; i++){
+    const s = stageEls[i];
+    const root = s.root;
+
+    if (root.dataset.bg !== settings.bg) root.dataset.bg = settings.bg;
+    if (root.dataset.state !== st) root.dataset.state = st;
+    root.style.setProperty('--accent', settings.accent);
+
+    /* font size: percentage of width, clamped by height */
+    if (s.w > 20){
+      const byWidth = s.w * Math.min(140 / charCount, 32) / 100;
+      const byHeight = s.h * 0.60;
+      const px = Math.max(14, Math.min(byWidth, byHeight));
+      s.root.style.setProperty('--fs', px.toFixed(1) + 'px');
+    }
+
+    if (s.lastText !== text){ s.digits.textContent = text; s.lastText = text; }
+    if (s.lastLabel !== labelText){ s.labelEl.textContent = labelText; s.lastLabel = labelText; }
+
+    s.fill.style.transform = 'scaleX(' + pct.toFixed(4) + ')';
+    s.bar.style.display = settings.showBar ? '' : 'none';
+
+    if (settings.showStatus){
+      s.status.parentNode.style.display = '';
+      if (s.lastStatus !== statusStr){ s.status.textContent = statusStr; s.lastStatus = statusStr; }
+      s.clock.textContent = clockStr;
+      s.clock.style.display = clockStr ? '' : 'none';
+      s.sep.style.display = clockStr ? '' : 'none';
+    } else {
+      s.status.parentNode.style.display = 'none';
+    }
+  }
+
+  /* remote view */
+  if (remoteTimeEl){
+    remoteTimeEl.textContent = text;
+    remoteTimeEl.className = 'remote-time' +
+      (st === 'warn' ? ' warn' : '') +
+      (st === 'crit' ? ' crit' : '') +
+      (st === 'done' ? ' done' : '') +
+      (st === 'paused' ? ' paused' : '');
+    remoteLabelEl.textContent = labelText;
+
+    const tgl = $('#rBtnToggleLabel');
+    const sub = $('#rBtnToggleSub');
+    tgl.textContent = rt.running ? '❚❚ Pause' : '▶ Start';
+    sub.textContent = rt.running ? 'Timer is live' : (rt.finished ? 'Time is up' : 'Tap to begin countdown');
+    $('#rBtnToggle').classList.toggle('running', rt.running);
+  }
+
+  /* transport button */
+  const bt = $('#btnToggle');
+  const bl = $('#btnToggleLabel');
+  if (bt){
+    bt.classList.toggle('running', rt.running);
+    const want = rt.running ? 'Pause' : (rt.remaining < rt.duration && !rt.finished ? 'Resume' : 'Start');
+    if (bl.textContent !== want) bl.textContent = want;
+  }
+  renderPresetsActive();
+}
+
+/* =========================================================
+   AUDIO
+   ========================================================= */
+let audioCtx = null;
+function beep(freq, dur, vol){
+  if (!settings.sound) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    o.connect(g); g.connect(audioCtx.destination);
+    const t = audioCtx.currentTime;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol || 0.15, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.start(t);
+    o.stop(t + dur + 0.03);
+  } catch(e){}
+}
+
+/* =========================================================
+   COMMANDS
+   ========================================================= */
+function start(){
+  if (rt.finished || rt.remaining <= 0) rt.remaining = rt.duration;
+  if (rt.remaining <= 0) return;
+  rt.endsAt = performance.now() + rt.remaining;
+  rt.running = true;
+  rt.finished = false;
+  try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch(e){}
+  schedule();
+}
+function pause(){
+  if (rt.running) rt.remaining = Math.max(0, rt.endsAt - performance.now());
+  rt.running = false;
+}
+function reset(){
+  rt.running = false;
+  rt.finished = false;
+  rt.remaining = rt.duration;
+}
+function addMs(ms){
+  rt.remaining = Math.max(0, rt.remaining + ms);
+  if (rt.running) rt.endsAt = performance.now() + rt.remaining;
+  if (rt.remaining > 0) rt.finished = false;
+}
+function setDuration(ms){
+  ms = Math.max(1000, Math.min(ms, 24 * 3600000));
+  settings.duration = ms;
+  saveSettings();
+  rt.duration = ms;
+  rt.remaining = ms;
+  rt.running = false;
+  rt.finished = false;
+}
+
+const CMD = {
+  toggle:  function(){ rt.running ? pause() : start(); },
+  start:   function(){ start(); },
+  pause:   function(){ pause(); },
+  reset:   function(){ reset(); },
+  add:     function(d){ addMs(d.ms || 0); },
+  setDuration: function(d){ setDuration(d.ms || 60000); },
+  settings: function(d){ Object.assign(settings, d); saveSettings(); syncControls(); }
+};
+
+function handle(cmd, data, local){
+  const fn = CMD[cmd];
+  if (!fn) return;
+  fn(data || {});
+  paint();
+  schedule();
+  if (local){
+    broadcast({ type: 'cmd', cmd: cmd, data: data });
+    broadcastState();
+  }
+}
+
+/* =========================================================
+   NETWORK SYNC (BroadcastChannel + PeerJS)
+   ========================================================= */
+const CLIENT_ID = Math.random().toString(36).slice(2, 9);
+const params = new URLSearchParams(location.search);
+const IS_REMOTE = params.get('remote') === '1' || location.hash.indexOf('remote') > -1;
+
+let ROOM = (params.get('room') || '').replace(/[^0-9]/g, '').slice(0, 6);
+if (!ROOM){
+  ROOM = (localStorage.getItem(ROOM_KEY) || '').replace(/[^0-9]/g, '');
+}
+if (!ROOM){
+  ROOM = String(Math.floor(1000 + Math.random() * 9000));
+}
+try { localStorage.setItem(ROOM_KEY, ROOM); } catch(e){}
+
+let channel = null;
+try {
+  if ('BroadcastChannel' in window) channel = new BroadcastChannel('ndicd-sync');
+} catch(e){ channel = null; }
+
+let peer = null;
+let hostConn = null;
+let conns = [];
+let connecting = false;
+
+function setConn(text, cls){
+  const dot = $('#statusDot');
+  const txt = $('#statusText');
+  if (!dot || !txt) return;
+  dot.className = 'dot' + (cls ? ' ' + cls : '');
+  txt.textContent = text;
+
+  const rdot = $('#remoteDot'), rtxt = $('#remoteStatus');
+  if (rdot){ rdot.className = 'dot' + (cls ? ' ' + cls : ''); }
+  if (rtxt){ rtxt.textContent = text; }
+}
+
+function broadcast(msg){
+  msg.id = CLIENT_ID;
+  msg.ts = Date.now();
+  if (channel){ try { channel.postMessage(msg); } catch(e){} }
+  for (let i = 0; i < conns.length; i++){
+    const c = conns[i];
+    try { if (c && c.open) c.send(msg); } catch(e){}
+  }
+  if (hostConn){
+    try { if (hostConn.open) hostConn.send(msg); } catch(e){}
+  }
+}
+
+function snapshot(){
+  return {
+    duration: rt.duration,
+    remaining: rt.remaining,
+    running: rt.running,
+    finished: rt.finished,
+    label: settings.label,
+    doneLabel: settings.doneLabel,
+    bg: settings.bg,
+    accent: settings.accent,
+    showBar: settings.showBar,
+    showStatus: settings.showStatus,
+    showClock: settings.showClock,
+    sound: settings.sound,
+    serverTime: Date.now()
+  };
+}
+
+function broadcastState(){
+  broadcast({ type: 'state', data: snapshot() });
+}
+
+let lastStatePush = 0;
+function maybePushState(){
+  const now = Date.now();
+  if (rt.running && now - lastStatePush > 900){
+    lastStatePush = now;
+    broadcastState();
+  }
+}
+setInterval(maybePushState, 400);
+
+function applyState(s){
+  if (!s) return;
+  if (typeof s.duration === 'number') rt.duration = s.duration;
+  if (typeof s.remaining === 'number') rt.remaining = s.remaining;
+  rt.running = !!s.running;
+  rt.finished = !!s.finished;
+  if (rt.running) rt.endsAt = performance.now() + rt.remaining;
+
+  settings.label = s.label !== undefined ? s.label : settings.label;
+  settings.doneLabel = s.doneLabel !== undefined ? s.doneLabel : settings.doneLabel;
+  settings.bg = s.bg || settings.bg;
+  settings.accent = s.accent || settings.accent;
+  if (typeof s.showBar === 'boolean') settings.showBar = s.showBar;
+  if (typeof s.showStatus === 'boolean') settings.showStatus = s.showStatus;
+  if (typeof s.showClock === 'boolean') settings.showClock = s.showClock;
+  if (typeof s.sound === 'boolean') settings.sound = s.sound;
+
+  saveSettings();
+  syncControls();
+  paint();
+  schedule();
+}
+
+function applyMsg(msg){
+  if (!msg || msg.id === CLIENT_ID) return;
+  if (msg.type === 'cmd'){
+    handle(msg.cmd, msg.data, false);
+  } else if (msg.type === 'state'){
+    applyState(msg.data);
+  } else if (msg.type === 'hello'){
+    if (!IS_REMOTE) broadcastState();
+  }
+}
+
+if (channel){
+  channel.onmessage = function(ev){ applyMsg(ev.data); };
+}
+
+/* ---------- PeerJS ---------- */
+function initPeer(){
+  if (typeof Peer === 'undefined'){
+    setConn(IS_REMOTE ? 'Relay unavailable' : 'Local mode', '');
+    return;
+  }
+  if (IS_REMOTE) initRemotePeer();
+  else initHostPeer();
+}
+
+function destroyPeer(){
+  try { if (peer) peer.destroy(); } catch(e){}
+  peer = null;
+  conns = [];
+  hostConn = null;
+  connecting = false;
+}
+
+function initHostPeer(){
+  destroyPeer();
+  setConn('Hosting · ' + ROOM, 'ok');
+  try {
+    peer = new Peer('ndicd-' + ROOM + '-host', { debug: 0 });
+  } catch(e){
+    setConn('Local mode', '');
+    return;
+  }
+  peer.on('open', function(){
+    setConn('Hosting · Room ' + ROOM, 'ok');
+  });
+  peer.on('connection', function(conn){
+    conns.push(conn);
+    conn.on('open', function(){
+      setConn('Remote connected', 'live');
+      try { conn.send({ id: CLIENT_ID, type: 'state', data: snapshot(), ts: Date.now() }); } catch(e){}
+    });
+    conn.on('data', function(msg){ applyMsg(msg); });
+    conn.on('close', function(){
+      conns = conns.filter(function(c){ return c !== conn; });
+      setConn(conns.length ? 'Remote connected' : 'Hosting · Room ' + ROOM, conns.length ? 'live' : 'ok');
+    });
+    conn.on('error', function(){});
+  });
+  peer.on('error', function(err){
+    if (err && err.type === 'unavailable-id'){
+      setConn('Room ' + ROOM + ' busy — new code', 'err');
+      setTimeout(function(){
+        ROOM = String(Math.floor(1000 + Math.random() * 9000));
+        try { localStorage.setItem(ROOM_KEY, ROOM); } catch(e){}
+        updateRoomUI();
+        initHostPeer();
+      }, 1200);
+    } else {
+      setConn('Local mode', '');
+    }
+  });
+  peer.on('disconnected', function(){
+    setConn('Reconnecting…', '');
+    try { peer.reconnect(); } catch(e){}
+  });
+}
+
+function initRemotePeer(){
+  destroyPeer();
+  setConn('Connecting…', '');
+  try {
+    peer = new Peer({ debug: 0 });
+  } catch(e){
+    setConn('Relay unavailable', 'err');
+    return;
+  }
+  peer.on('open', function(){ connectToHost(); });
+  peer.on('error', function(err){
+    if (err && err.type === 'peer-unavailable'){
+      setConn('Host offline · retrying', 'err');
+      connecting = false;
+      setTimeout(connectToHost, 3000);
+    } else {
+      setConn('Relay error', 'err');
+    }
+  });
+  peer.on('disconnected', function(){
+    setConn('Reconnecting…', '');
+    try { peer.reconnect(); } catch(e){}
+  });
+}
+
+function connectToHost(){
+  if (!peer || peer.destroyed || connecting) return;
+  connecting = true;
+  setConn('Connecting…', '');
+  let conn;
+  try {
+    conn = peer.connect('ndicd-' + ROOM + '-host', { reliable: true });
+  } catch(e){
+    connecting = false;
+    setTimeout(connectToHost, 3000);
+    return;
+  }
+  hostConn = conn;
+  conn.on('open', function(){
+    connecting = false;
+    setConn('Connected · Room ' + ROOM, 'live');
+    try { conn.send({ id: CLIENT_ID, type: 'hello', ts: Date.now() }); } catch(e){}
+  });
+  conn.on('data', function(msg){ applyMsg(msg); });
+  conn.on('close', function(){
+    connecting = false;
+    hostConn = null;
+    setConn('Disconnected · retrying', 'err');
+    setTimeout(connectToHost, 3000);
+  });
+  conn.on('error', function(){
+    connecting = false;
+    setConn('Retrying…', 'err');
+    setTimeout(connectToHost, 3000);
+  });
+}
+
+/* =========================================================
+   UI WIRING
+   ========================================================= */
+function setView(v){
+  const app = $('#app');
+  app.dataset.view = v;
+  $$('.tab').forEach(function(b){ b.classList.toggle('active', b.dataset.viewBtn === v); });
+  const pill = $('#exitPill');
+  if (v === 'output'){ showPill(); } else { pill.classList.remove('show'); }
+  if (v === 'output'){
+    try { history.replaceState(null, '', location.pathname + location.search + '#output'); } catch(e){}
+  }
+  setTimeout(paint, 60);
+}
+
+let pillTimer = null;
+function showPill(){
+  const pill = $('#exitPill');
+  pill.classList.add('show');
+  clearTimeout(pillTimer);
+  pillTimer = setTimeout(function(){ pill.classList.remove('show'); }, 4200);
+}
+
+const PRESETS = [30000, 60000, 120000, 300000, 600000, 900000, 1800000, 3600000];
+const PRESET_LABELS = ['0:30', '1:00', '2:00', '5:00', '10:00', '15:00', '30:00', '60:00'];
+
+function buildPresets(){
+  const host = $('#presets');
+  const rHost = $('#remotePresets');
+  host.innerHTML = '';
+  rHost.innerHTML = '';
+  PRESETS.forEach(function(ms, i){
+    const b = document.createElement('button');
+    b.className = 'preset';
+    b.textContent = PRESET_LABELS[i];
+    b.dataset.ms = ms;
+    b.addEventListener('click', function(){
+      handle('setDuration', { ms: ms }, true);
+      toast('Loaded ' + PRESET_LABELS[i]);
+    });
+    host.appendChild(b);
+
+    if (i < 4 || i === 4 || i === 6){
+      const rb = document.createElement('button');
+      rb.textContent = PRESET_LABELS[i];
+      rb.addEventListener('click', function(){ handle('setDuration', { ms: ms }, true); });
+      rHost.appendChild(rb);
+    }
+  });
+  renderPresetsActive();
+}
+
+function renderPresetsActive(){
+  $$('#presets .preset').forEach(function(b){
+    b.classList.toggle('active', Number(b.dataset.ms) === rt.duration);
+  });
+}
+
+const ACCENTS = ['#22d3ee', '#4f7dfb', '#a78bfa', '#34d399', '#fbbf24', '#fb4d63', '#f472b6', '#ffffff'];
+
+function buildSwatches(){
+  const host = $('#swatches');
+  host.innerHTML = '';
+  ACCENTS.forEach(function(c){
+    const b = document.createElement('button');
+    b.className = 'swatch';
+    b.style.background = c;
+    b.style.color = c;
+    b.dataset.color = c;
+    b.addEventListener('click', function(){
+      handle('settings', { accent: c }, true);
+      paint();
+    });
+    host.appendChild(b);
+  });
+}
+
+function syncControls(){
+  $('#labelInput').value = settings.label;
+
+  $$('#bgSeg button').forEach(function(b){
+    b.classList.toggle('active', b.dataset.bg === settings.bg);
+  });
+  $$('#swatches .swatch').forEach(function(b){
+    b.classList.toggle('active', b.dataset.color.toLowerCase() === String(settings.accent).toLowerCase());
+  });
+  $$('.switch-row').forEach(function(row){
+    const key = row.dataset.toggle;
+    const sw = $('.switch', row);
+    const on = !!settings[key];
+    sw.classList.toggle('on', on);
+    sw.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+  renderPresetsActive();
+}
+
+function bindEvents(){
+  /* view tabs */
+  $$('.tab').forEach(function(b){
+    b.addEventListener('click', function(){ setView(b.dataset.viewBtn); });
+  });
+
+  /* transport */
+  $('#btnToggle').addEventListener('click', function(){ handle('toggle', {}, true); });
+  $('#btnReset').addEventListener('click', function(){ handle('reset', {}, true); toast('Timer reset'); });
+
+  $$('[data-add]').forEach(function(b){
+    b.addEventListener('click', function(){
+      handle('add', { ms: Number(b.dataset.add) }, true);
+    });
+  });
+
+  /* custom duration */
+  $('#btnSetCustom').addEventListener('click', applyCustom);
+  $('#customDur').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') applyCustom();
+  });
+  function applyCustom(){
+    const ms = parseDuration($('#customDur').value);
+    if (ms === null || ms <= 0){ toast('Enter a time like 7:30 or 1:05:00'); return; }
+    handle('setDuration', { ms: ms }, true);
+    $('#customDur').value = '';
+    toast('Timer set to ' + fmt(ms));
+  }
+
+  /* label */
+  let labelTimer = null;
+  $('#labelInput').addEventListener('input', function(e){
+    clearTimeout(labelTimer);
+    const v = e.target.value;
+    labelTimer = setTimeout(function(){
+      handle('settings', { label: v }, true);
+    }, 220);
+  });
+
+  /* background */
+  $$('#bgSeg button').forEach(function(b){
+    b.addEventListener('click', function(){
+      handle('settings', { bg: b.dataset.bg }, true);
+    });
+  });
+
+  /* toggles */
+  $$('.switch-row').forEach(function(row){
+    row.addEventListener('click', function(){
+      const key = row.dataset.toggle;
+      const val = !settings[key];
+      const obj = {}; obj[key] = val;
+      handle('settings', obj, true);
+      if (key === 'sound' && val) beep(700, 0.12, 0.12);
+    });
+  });
+
+  /* room / remote link */
+  $('#btnCopyLink').addEventListener('click', function(){
+    const link = remoteLink();
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(link).then(function(){ toast('Remote link copied'); })
+        .catch(function(){ toast(link); });
+    } else {
+      toast(link);
+    }
+  });
+
+  $('#btnNewRoom').addEventListener('click', function(){
+    ROOM = String(Math.floor(1000 + Math.random() * 9000));
+    try { localStorage.setItem(ROOM_KEY, ROOM); } catch(e){}
+    updateRoomUI();
+    if (IS_REMOTE) { destroyPeer(); initRemotePeer(); }
+    else { initHostPeer(); }
+    toast('New room code: ' + ROOM);
+  });
+
+  /* remote view buttons */
+  $('#rBtnToggle').addEventListener('click', function(){ handle('toggle', {}, true); });
+  $('#rBtnReset').addEventListener('click', function(){ handle('reset', {}, true); toast('Timer reset'); });
+  $('#rBtnPause').addEventListener('click', function(){ handle('pause', {}, true); });
+
+  /* keyboard */
+  document.addEventListener('keydown', function(e){
+    const tag = (e.target && e.target.tagName) || '';
+    if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
+
+    if (e.code === 'Space'){ e.preventDefault(); handle('toggle', {}, true); }
+    else if (e.key === 'r' || e.key === 'R'){ handle('reset', {}, true); }
+    else if (e.key === 'f' || e.key === 'F'){
+      setView($('#app').dataset.view === 'output' ? 'control' : 'output');
+    }
+    else if (e.key === 'Escape'){ setView('control'); }
+    else if (e.key === 'ArrowUp'){ e.preventDefault(); handle('add', { ms: 60000 }, true); }
+    else if (e.key === 'ArrowDown'){ e.preventDefault(); handle('add', { ms: -60000 }, true); }
+    else if (e.key === 'ArrowRight'){ handle('add', { ms: 10000 }, true); }
+    else if (e.key === 'ArrowLeft'){ handle('add', { ms: -10000 }, true); }
+  });
+
+  /* output pill */
+  document.addEventListener('mousemove', function(){
+    if ($('#app').dataset.view === 'output') showPill();
+  });
+  $('#exitPill').addEventListener('click', function(){ setView('control'); });
+
+  /* keep awake / resume */
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden && rt.running){
+      rt.remaining = Math.max(0, rt.endsAt - performance.now());
+      paint();
+      schedule();
+    }
+  });
+}
+
+function remoteLink(){
+  let base;
+  try {
+    if (location.protocol === 'http:' || location.protocol === 'https:'){
+      base = location.origin + location.pathname;
+    } else {
+      base = location.href.split('#')[0].split('?')[0];
+    }
+  } catch(e){
+    base = location.href;
+  }
+  return base + '?remote=1&room=' + ROOM;
+}
+
+function updateRoomUI(){
+  $('#roomCode').textContent = ROOM;
+
+  const link = remoteLink();
+  const shareable = (location.protocol === 'http:' || location.protocol === 'https:');
+  const hint = $('#qrHint');
+  const box = $('#qrBox');
+
+  if (!shareable){
+    box.style.display = 'none';
+    hint.innerHTML = 'Host this file on a web server or local network, then scan to open the remote. ' +
+      'On this device you can also open the <strong>Phone Remote</strong> tab.';
+    return;
+  }
+  hint.innerHTML = 'Scan with your Android phone, or open <strong>' + link +
+    '</strong> on the same network.';
+
+  if (typeof QRCode !== 'undefined'){
+    try {
+      QRCode.toCanvas($('#qrCanvas'), link, {
+        width: 150,
+        margin: 1,
+        color: { dark: '#050810', light: '#ffffff' }
+      }, function(err){ if (err) box.style.display = 'none'; });
+      box.style.display = '';
+    } catch(e){ box.style.display = 'none'; }
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
+function init(){
+  buildStage($('#previewHost'));
+  buildStage($('#outputHost'));
+
+  const outWrap = $('#outputHost');
+  if (outWrap) outWrap.removeAttribute('data-checker');
+
+  remoteTimeEl = $('#remoteTime');
+  remoteLabelEl = $('#remoteLabel');
+
+  buildPresets();
+  buildSwatches();
+  syncControls();
+  bindEvents();
+  updateRoomUI();
+
+  /* seed stage sizes immediately */
+  stageEls.forEach(function(s){
+    const r = s.root.getBoundingClientRect();
+    if (r.width > 20){ s.w = r.width; s.h = r.height; }
+  });
+
+  /* deep link: ?view=output */
+  const v = params.get('view');
+  if (v === 'output' || location.hash.indexOf('output') > -1){
+    setView('output');
+  } else if (IS_REMOTE){
+    setView('remote');
+  }
+
+  paint();
+  schedule();
+
+  /* first user gesture unlocks audio */
+  const unlock = function(){
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch(e){}
+    document.removeEventListener('pointerdown', unlock);
+  };
+  document.addEventListener('pointerdown', unlock);
+
+  initPeer();
+}
+
+let remoteTimeEl = null;
+let remoteLabelEl = null;
+
+if (document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+})();
+</script>
+</body>
+</html>
